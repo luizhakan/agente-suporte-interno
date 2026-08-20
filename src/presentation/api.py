@@ -34,7 +34,6 @@ from src.presentation.formatting import evidence_excerpt, format_answer_for_disp
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 _APPROXIMATE_P50_SECONDS = 2.0
 _admission_semaphore = asyncio.Semaphore(settings.MAX_CONCURRENT_REQUESTS)
-_admission_counter_lock = asyncio.Lock()
 _admission_waiting = 0
 
 
@@ -59,10 +58,11 @@ async def _acquire_admission_slot() -> None:
     """Reserva uma execução ou rejeita quando a fila HTTP está saturada."""
     global _admission_waiting
 
-    async with _admission_counter_lock:
-        if _admission_waiting >= settings.MAX_QUEUE_DEPTH:
-            raise _capacity_error()
-        _admission_waiting += 1
+    # Não há await entre a leitura e a escrita: em um único event loop por
+    # processo, a atualização é atômica de forma cooperativa.
+    if _admission_waiting >= settings.MAX_QUEUE_DEPTH:
+        raise _capacity_error()
+    _admission_waiting += 1
 
     try:
         await asyncio.wait_for(
@@ -72,8 +72,7 @@ async def _acquire_admission_slot() -> None:
     except asyncio.TimeoutError:
         raise _capacity_error()
     finally:
-        async with _admission_counter_lock:
-            _admission_waiting -= 1
+        _admission_waiting -= 1
 
 
 @asynccontextmanager

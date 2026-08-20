@@ -188,6 +188,30 @@ async def test_api_startup_rejects_wildcard_cors(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_query_admission_timeout_returns_429_and_clears_waiting_counter(
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "MAX_QUEUE_DEPTH", 1)
+    monkeypatch.setattr(settings, "ADMISSION_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(api_module, "_admission_semaphore", asyncio.Semaphore(0))
+    monkeypatch.setattr(api_module, "_admission_waiting", 0)
+    rejected_before = metrics_collector.rejected_429_total
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/query",
+            json={"question": "Como funciona o fracionamento de férias?"},
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "2"
+    assert api_module._admission_waiting == 0
+    assert metrics_collector.rejected_429_total == rejected_before + 1
+
+
+@pytest.mark.asyncio
 async def test_query_admission_rejects_fast_and_does_not_block_observability(
     monkeypatch,
 ):
@@ -195,7 +219,6 @@ async def test_query_admission_rejects_fast_and_does_not_block_observability(
     monkeypatch.setattr(settings, "MAX_QUEUE_DEPTH", 1)
     monkeypatch.setattr(settings, "ADMISSION_TIMEOUT_SECONDS", 1.0)
     monkeypatch.setattr(api_module, "_admission_semaphore", asyncio.Semaphore(1))
-    monkeypatch.setattr(api_module, "_admission_counter_lock", asyncio.Lock())
     monkeypatch.setattr(api_module, "_admission_waiting", 0)
 
     generation_started = asyncio.Event()
