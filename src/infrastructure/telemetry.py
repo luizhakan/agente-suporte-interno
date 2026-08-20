@@ -45,6 +45,7 @@ class MetricsCollector:
     def __init__(self):
         self.total_requests = 0
         self.total_errors = 0
+        self.rejected_429_total = 0
         self.latencies_ms: List[float] = []
 
     def record_request(self, total_latency_ms: float, is_error: bool = False):
@@ -56,11 +57,15 @@ class MetricsCollector:
         if len(self.latencies_ms) > 10000:
             self.latencies_ms = self.latencies_ms[-10000:]
 
+    def record_rejected_429(self):
+        self.rejected_429_total += 1
+
     def get_summary(self) -> Dict[str, Any]:
         if not self.latencies_ms:
             return {
                 "total_requests": self.total_requests,
                 "total_errors": self.total_errors,
+                "rejected_429_total": self.rejected_429_total,
                 "error_rate_pct": 0.0,
                 "p50_latency_ms": 0.0,
                 "p95_latency_ms": 0.0,
@@ -75,6 +80,7 @@ class MetricsCollector:
         return {
             "total_requests": self.total_requests,
             "total_errors": self.total_errors,
+            "rejected_429_total": self.rejected_429_total,
             "error_rate_pct": round(error_rate, 2),
             "p50_latency_ms": round(p50, 2),
             "p95_latency_ms": round(p95, 2),

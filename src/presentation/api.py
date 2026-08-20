@@ -1,5 +1,6 @@
 """Aplicação FastAPI para exposição do Agente de Suporte Interno via HTTP."""
 import asyncio
+import math
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -31,6 +32,48 @@ from src.presentation.formatting import evidence_excerpt, format_answer_for_disp
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+_APPROXIMATE_P50_SECONDS = 2.0
+_admission_semaphore = asyncio.Semaphore(settings.MAX_CONCURRENT_REQUESTS)
+_admission_counter_lock = asyncio.Lock()
+_admission_waiting = 0
+
+
+def _capacity_error() -> HTTPException:
+    metrics_collector.record_rejected_429()
+    # Estimativa conservadora: profundidade máxima da fila × p50 observado (~2 s),
+    # arredondada para o próximo segundo inteiro conforme o Retry-After HTTP.
+    retry_after_seconds = math.ceil(
+        settings.MAX_QUEUE_DEPTH * _APPROXIMATE_P50_SECONDS
+    )
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=(
+            "O serviço está no limite de capacidade. "
+            "Tente novamente em instantes."
+        ),
+        headers={"Retry-After": str(retry_after_seconds)},
+    )
+
+
+async def _acquire_admission_slot() -> None:
+    """Reserva uma execução ou rejeita quando a fila HTTP está saturada."""
+    global _admission_waiting
+
+    async with _admission_counter_lock:
+        if _admission_waiting >= settings.MAX_QUEUE_DEPTH:
+            raise _capacity_error()
+        _admission_waiting += 1
+
+    try:
+        await asyncio.wait_for(
+            _admission_semaphore.acquire(),
+            timeout=settings.ADMISSION_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        raise _capacity_error()
+    finally:
+        async with _admission_counter_lock:
+            _admission_waiting -= 1
 
 
 @asynccontextmanager
@@ -156,6 +199,7 @@ async def get_metrics():
     responses={
         200: {"description": "Resposta gerada ou informação não encontrada na base"},
         400: {"description": "Entrada inválida ou vazia"},
+        429: {"description": "Capacidade de execução e fila esgotadas"},
         503: {"description": "Serviço ou fonte temporariamente indisponível"},
     },
 )
@@ -163,6 +207,15 @@ async def process_query(request: QueryRequest):
     """
     Processa a dúvida do colaborador executando o fluxo determinístico LangGraph.
     """
+    await _acquire_admission_slot()
+    try:
+        return await _execute_query(request)
+    finally:
+        _admission_semaphore.release()
+
+
+async def _execute_query(request: QueryRequest):
+    """Executa uma consulta já admitida pelo controle de capacidade HTTP."""
     start_time = time.perf_counter()
     trace_id = request.trace_id or generate_trace_id()
 
