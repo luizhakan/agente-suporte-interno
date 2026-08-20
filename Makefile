@@ -1,4 +1,4 @@
-.PHONY: help install ingest run cli test eval eval-mock eval-ollama clean compose-local compose-cloud compose-mock
+.PHONY: help install ingest run cli test eval eval-mock eval-ollama eval-ollama-api clean compose-local compose-cloud compose-mock
 
 PYTHON := .venv/bin/python3
 PIP := .venv/bin/pip
@@ -14,6 +14,7 @@ help:
 	@echo "  make test            - Executa todos os testes unitários e de integração"
 	@echo "  make eval-mock       - Mede o teto da infraestrutura com mock/dense"
 	@echo "  make eval-ollama     - Mede ponta a ponta no stack Ollama em execução"
+	@echo "  make eval-ollama-api - Mede admissão e rejeições pela API HTTP"
 	@echo "  make docker-build    - Constrói a imagem Docker da aplicação"
 	@echo "  make docker-run      - Executa o container Docker na porta 8000"
 	@echo "  make compose-up      - Sobe o serviço via docker-compose"
@@ -47,6 +48,9 @@ eval-mock:
 
 eval-ollama:
 	docker exec agente-suporte-interno python scripts/evaluate.py --battery ollama
+
+eval-ollama-api:
+	docker exec agente-suporte-interno python scripts/load_api.py
 
 docker-build:
 	docker build -t agente-suporte-interno .
