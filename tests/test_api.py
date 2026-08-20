@@ -1,9 +1,13 @@
 """Testes de integração da API FastAPI e mapeamento de status HTTP (Seção 4.4)."""
+import asyncio
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+import src.presentation.api as api_module
 from src.bootstrap import vector_repository
 from src.config import settings
 from src.domain.models import Chunk
+from src.infrastructure.telemetry import metrics_collector
 from src.presentation.api import app, lifespan
 
 
@@ -120,6 +124,7 @@ async def test_api_metrics_endpoint():
         assert response.status_code == 200
         data = response.json()
         assert "total_requests" in data
+        assert "rejected_429_total" in data
         assert "p50_latency_ms" in data
 
 
@@ -180,3 +185,66 @@ async def test_api_startup_rejects_wildcard_cors(monkeypatch):
     with pytest.raises(RuntimeError, match="wildcard"):
         async with lifespan(app):
             pass
+
+
+@pytest.mark.asyncio
+async def test_query_admission_rejects_fast_and_does_not_block_observability(
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "MAX_CONCURRENT_REQUESTS", 1)
+    monkeypatch.setattr(settings, "MAX_QUEUE_DEPTH", 1)
+    monkeypatch.setattr(settings, "ADMISSION_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(api_module, "_admission_semaphore", asyncio.Semaphore(1))
+    monkeypatch.setattr(api_module, "_admission_counter_lock", asyncio.Lock())
+    monkeypatch.setattr(api_module, "_admission_waiting", 0)
+
+    generation_started = asyncio.Event()
+    original_generate = api_module.llm_client.generate_answer
+
+    async def delayed_generate(query, chunks):
+        generation_started.set()
+        await asyncio.sleep(0.2)
+        return await original_generate(query, chunks)
+
+    monkeypatch.setattr(api_module.llm_client, "generate_answer", delayed_generate)
+    rejected_before = metrics_collector.rejected_429_total
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        request = {
+            "url": "/api/v1/query",
+            "json": {"question": "Como funciona o fracionamento de férias?"},
+            "headers": auth_headers(),
+        }
+        first = asyncio.create_task(client.post(**request))
+        await asyncio.wait_for(generation_started.wait(), timeout=0.5)
+        second = asyncio.create_task(client.post(**request))
+
+        for _ in range(50):
+            if api_module._admission_waiting == 1:
+                break
+            await asyncio.sleep(0.005)
+        assert api_module._admission_waiting == 1
+
+        health = await client.get("/health")
+        metrics_during_saturation = await client.get(
+            "/metrics",
+            headers=auth_headers(),
+        )
+        third = asyncio.create_task(client.post(**request))
+        fourth = asyncio.create_task(client.post(**request))
+        responses = await asyncio.gather(first, second, third, fourth)
+
+        metrics_after = await client.get("/metrics", headers=auth_headers())
+
+    assert health.status_code == 200
+    assert metrics_during_saturation.status_code == 200
+    assert [response.status_code for response in responses].count(200) == 2
+    rejected = [response for response in responses if response.status_code == 429]
+    assert len(rejected) == 2
+    assert all(response.headers["retry-after"] == "2" for response in rejected)
+    assert all(
+        "limite de capacidade" in response.json()["detail"]
+        for response in rejected
+    )
+    assert metrics_after.json()["rejected_429_total"] == rejected_before + 2
