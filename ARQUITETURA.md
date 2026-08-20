@@ -246,13 +246,22 @@ A geração no LLM domina. Otimizar recuperação tem retorno marginal; otimizar
 | 5 | Cache LRU do embedding da pergunta | perguntas repetidas na demo não pagam o encode |
 | 6 | Streaming opcional no endpoint | melhora latência percebida (TTFT), não a total |
 
-> Preencher com os números reais medidos: baseline vs. otimizado, p50 e p95, sobre
-> 26 perguntas × 3 rodadas. Ver `docs/latency.md` e `evidence/latency.csv`.
+Medição de 2026-08-20, com 26 perguntas × 3 rodadas:
+
+| Bateria | Provedores | Acerto funcional | p50 | p95 | Evidência |
+| --- | --- | ---: | ---: | ---: | --- |
+| A | mock + dense hashing | 69/78 (88,5%) | 2,17 ms | 3,46 ms | `evidence/latency_mock.csv` |
+| B | Qwen3 1.7B + EmbeddingGemma | 78/78 (100%) | 1.745,41 ms | 2.396,15 ms | `evidence/latency_ollama.csv` |
+
+A bateria A isola o teto da implementação, mas não mede inferência real e **não
+substitui** a bateria B ponta a ponta. O primeiro request frio do Ollama aparece no
+CSV; as percentis incluem recuperação, reescrita, verificação, composição e
+validação de citações.
 
 O conjunto de avaliação tem 26 perguntas em cinco grupos: resposta direta,
 paráfrase, pergunta sem resposta na base, casos de borda e descoberta do escopo.
-Cada execução registra
-`timings` por nó, tokens de entrada/saída e custo estimado.
+Cada execução registra provedor, latência ponta a ponta, falha, score de recuperação,
+quantidade de reescritas e conformidade com a resposta/fonte esperada.
 
 ## 7. Escalabilidade
 
@@ -287,14 +296,30 @@ a aplicação. Por isso:
 
 | Bateria | LLM | Concorrência | O que mede |
 | --- | --- | --- | --- |
-| A (teto da aplicação) | stub com latência fixa | 1, 5, 10, 20, 40 | throughput real, tempo em fila, ponto de saturação, erros |
-| B (ponta a ponta honesto) | real | 1, 5, 10 | p50/p95 verdadeiros, taxa de 429 do provedor, custo |
+| A (teto da aplicação) | mock determinístico + dense | 1, 5, 10, 20, 40 | throughput do código, tempo em fila, ponto de saturação, erros |
+| B (ponta a ponta honesto) | Qwen3 + EmbeddingGemma no Ollama | 1, 5, 10 | p50/p95 verdadeiros, saturação e erros do modelo local |
 
 Reportar as duas separadamente. A bateria A **não** substitui a B: ela isola a
 infraestrutura, e isso precisa estar escrito no relatório.
 
-> Preencher com: throughput (req/s), p95, taxa de erro e tempo em fila por nível de
-> concorrência. Ver `evidence/scale.csv`.
+Resultados medidos em 2026-08-20, com 100 requisições por nível:
+
+| Bateria | Concorrência | Throughput | p95 | Erros |
+| --- | ---: | ---: | ---: | ---: |
+| A | 1 | 445,0 req/s | 3,12 ms | 0% |
+| A | 5 | 594,5 req/s | 11,70 ms | 0% |
+| A | 10 | 641,6 req/s | 21,02 ms | 0% |
+| A | 20 | 667,2 req/s | 38,76 ms | 0% |
+| A | 40 | 642,5 req/s | 77,79 ms | 0% |
+| B | 1 | 0,6 req/s | 2.654,35 ms | 0% |
+| B | 5 | 0,3 req/s | 29.438,07 ms | 0% |
+| B | 10 | 0,3 req/s | 59.622,50 ms | 0% |
+
+Na bateria A, o throughput atinge o platô entre 10 e 20 concorrentes e a fila passa
+a dominar o p95. Na bateria B, o único processo Ollama já está saturado em
+concorrência 1; níveis 5 e 10 reduzem o throughput e elevam o p95 para dezenas de
+segundos. Os dados completos estão em `evidence/scale_mock.csv` e
+`evidence/scale_ollama.csv`.
 
 ## 8. Riscos e mitigações
 

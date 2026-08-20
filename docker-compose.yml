@@ -23,6 +23,7 @@ services:
     volumes:
       # Documentos ficam editáveis no host; o índice semântico usa volume próprio.
       - ./data/docs:/app/data/docs:ro
+      - ./evidence:/app/evidence
       - agente-index:/app/index/v1
     restart: unless-stopped
     healthcheck:

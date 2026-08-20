@@ -1,4 +1,4 @@
-.PHONY: help install ingest run cli test eval clean compose-local compose-cloud compose-mock
+.PHONY: help install ingest run cli test eval eval-mock eval-ollama clean compose-local compose-cloud compose-mock
 
 PYTHON := .venv/bin/python3
 PIP := .venv/bin/pip
@@ -12,7 +12,8 @@ help:
 	@echo "  make run             - Inicia o servidor da API FastAPI em http://localhost:8000"
 	@echo "  make cli             - Inicia o terminal interativo do agente de suporte"
 	@echo "  make test            - Executa todos os testes unitários e de integração"
-	@echo "  make eval            - Executa as baterias de teste de latência e concorrência"
+	@echo "  make eval-mock       - Mede o teto da infraestrutura com mock/dense"
+	@echo "  make eval-ollama     - Mede ponta a ponta no stack Ollama em execução"
 	@echo "  make docker-build    - Constrói a imagem Docker da aplicação"
 	@echo "  make docker-run      - Executa o container Docker na porta 8000"
 	@echo "  make compose-up      - Sobe o serviço via docker-compose"
@@ -39,8 +40,13 @@ cli:
 test:
 	PYTHONPATH=. $(PYTEST) -v
 
-eval:
-	PYTHONPATH=. $(PYTHON) scripts/evaluate.py
+eval: eval-mock
+
+eval-mock:
+	LLM_PROVIDER=mock EMBEDDING_PROVIDER=dense PYTHONPATH=. $(PYTHON) scripts/evaluate.py --battery mock
+
+eval-ollama:
+	docker exec agente-suporte-interno python scripts/evaluate.py --battery ollama
 
 docker-build:
 	docker build -t agente-suporte-interno .

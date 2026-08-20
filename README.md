@@ -157,13 +157,46 @@ make test
 
 ## 📊 Avaliação e Benchmarks de Latência e Escala
 
-O projeto conta com um script de avaliação automatizado cobrindo 26 perguntas (resposta direta, paráfrases semânticas, descoberta dinâmica do escopo, perguntas fora da base e casos de borda) e testes de concorrência (1, 5, 10, 20 e 40 requisições simultâneas):
+O projeto conta com um script de avaliação automatizado cobrindo 26 perguntas
+(resposta direta, paráfrases semânticas, descoberta dinâmica do escopo, perguntas
+fora da base e casos de borda). As medições são separadas por provedor:
+
 ```bash
-make eval
+# Bateria A: teto da infraestrutura, sem downloads de modelos
+make eval-mock
+
+# Bateria B: ponta a ponta real; requer o stack local em execução
+make compose-local
+make eval-ollama
 ```
-Os resultados são gerados em:
-- `evidence/latency.csv`
-- `evidence/scale.csv`
+
+Resultados medidos em 2026-08-20:
+
+| Bateria | Provedores | Acerto funcional | p50 | p95 |
+| --- | --- | ---: | ---: | ---: |
+| A | mock + dense hashing | 69/78 (88,5%) | 2,17 ms | 3,46 ms |
+| B | Qwen3 1.7B + EmbeddingGemma | 78/78 (100%) | 1.745,41 ms | 2.396,15 ms |
+
+| Bateria | Concorrência | Throughput | p95 | Erros |
+| --- | ---: | ---: | ---: | ---: |
+| A | 1 | 445,0 req/s | 3,12 ms | 0% |
+| A | 5 | 594,5 req/s | 11,70 ms | 0% |
+| A | 10 | 641,6 req/s | 21,02 ms | 0% |
+| A | 20 | 667,2 req/s | 38,76 ms | 0% |
+| A | 40 | 642,5 req/s | 77,79 ms | 0% |
+| B | 1 | 0,6 req/s | 2.654,35 ms | 0% |
+| B | 5 | 0,3 req/s | 29.438,07 ms | 0% |
+| B | 10 | 0,3 req/s | 59.622,50 ms | 0% |
+
+A bateria A mede o teto do código e da recuperação determinística, mas **não
+substitui** a bateria B. A medição real mostra que o único processo Ollama local
+satura acima de concorrência 1: aumentar o paralelismo reduz o throughput e aumenta
+fortemente o tempo em fila.
+
+Os CSVs preservam o provedor em cada linha:
+
+- `evidence/latency_mock.csv` e `evidence/scale_mock.csv`;
+- `evidence/latency_ollama.csv` e `evidence/scale_ollama.csv`.
 
 ---
 

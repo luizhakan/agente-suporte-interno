@@ -1,14 +1,17 @@
 """Script de avaliação automatizada de latência (Seção 6) e concorrência/escalabilidade (Seção 7)."""
+import argparse
 import asyncio
 import csv
 import time
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any, Sequence
 import numpy as np
 
-from src.bootstrap import support_graph, vector_repository
+from src.application.ingestion import run_ingestion
+from src.bootstrap import llm_client, support_graph, vector_repository
 from src.config import settings
 from src.domain.models import AgentState, FailureKind
+from src.infrastructure.embeddings import embedding_service
 from src.infrastructure.telemetry import generate_trace_id
 
 
@@ -52,6 +55,39 @@ EVALUATION_DATASET = [
 ]
 
 
+BATTERIES = {
+    "mock": {
+        "llm_provider": "mock",
+        "embedding_provider": "dense",
+        "concurrency_levels": (1, 5, 10, 20, 40),
+    },
+    "ollama": {
+        "llm_provider": "ollama",
+        "embedding_provider": "ollama",
+        "concurrency_levels": (1, 5, 10),
+    },
+}
+
+
+def provider_label() -> str:
+    """Identifica inequivocamente os adaptadores medidos em cada linha."""
+    return (
+        f"{llm_client.provider_name}:{llm_client.model_name}"
+        f"+{embedding_service.provider_name}:{embedding_service.model_name}"
+    )
+
+
+def validate_battery_configuration(battery: str) -> None:
+    """Impede que uma execução seja salva sob o nome de outro provedor."""
+    expected = BATTERIES[battery]
+    actual = (llm_client.provider_name, embedding_service.provider_name)
+    required = (expected["llm_provider"], expected["embedding_provider"])
+    if actual != required:
+        raise RuntimeError(
+            f"Bateria {battery!r} exige provedores {required}, mas recebeu {actual}."
+        )
+
+
 async def run_single_query(question: str) -> Dict[str, Any]:
     trace_id = generate_trace_id()
     state: AgentState = {
@@ -80,7 +116,7 @@ async def run_single_query(question: str) -> Dict[str, Any]:
     }
 
 
-async def run_latency_benchmark(output_path: Path):
+async def run_latency_benchmark(output_path: Path, provider: str):
     """Executa a bateria funcional e de latência em três rodadas."""
     print("Iniciando Bateria de Latência (26 perguntas × 3 rodadas)...")
     results = []
@@ -98,6 +134,7 @@ async def run_latency_benchmark(output_path: Path):
                 and (not expected_text or expected_text.casefold() in out["answer"].casefold())
             )
             results.append({
+                "provider": provider,
                 "round": round_idx,
                 "question_id": item["id"],
                 "group": item["group"],
@@ -126,14 +163,17 @@ async def run_latency_benchmark(output_path: Path):
     print(f"Resultado funcional: {passed}/{len(results)} casos com resposta e fontes esperadas.\n")
 
 
-async def run_scale_benchmark(output_path: Path):
-    """Executa a bateria de escala e concorrência (Bateria A: 1, 5, 10, 20, 40 concorrentes)."""
+async def run_scale_benchmark(
+    output_path: Path,
+    provider: str,
+    concurrency_levels: Sequence[int],
+    total_requests: int = 100,
+):
+    """Executa a bateria de escala nos níveis definidos para cada provedor."""
     print("Iniciando Bateria de Escala e Concorrência...")
-    concurrency_levels = [1, 5, 10, 20, 40]
     scale_rows = []
 
     for concurrency in concurrency_levels:
-        total_requests = 100
         semaphore = asyncio.Semaphore(concurrency)
         latencies = []
         errors = 0
@@ -161,6 +201,7 @@ async def run_scale_benchmark(output_path: Path):
         err_rate = (errors / total_requests) * 100.0
 
         scale_rows.append({
+            "provider": provider,
             "concurrency": concurrency,
             "total_requests": total_requests,
             "total_time_s": round(total_time_s, 3),
@@ -184,11 +225,43 @@ async def run_scale_benchmark(output_path: Path):
     print(f"Escala concluída! Salvo em: {output_path}\n")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Gera evidências funcionais, de latência e de escala por provedor.",
+    )
+    parser.add_argument("--battery", choices=sorted(BATTERIES), required=True)
+    parser.add_argument(
+        "--scale-requests",
+        type=int,
+        default=100,
+        help="Total de requisições por nível de concorrência (padrão: 100).",
+    )
+    return parser.parse_args()
+
+
 async def main():
-    vector_repository.load()
+    args = parse_args()
+    if args.scale_requests <= 0:
+        raise ValueError("--scale-requests deve ser positivo.")
+    validate_battery_configuration(args.battery)
+    if not vector_repository.load():
+        run_ingestion()
+        if not vector_repository.load():
+            raise RuntimeError("Não foi possível carregar o índice para a avaliação.")
+
+    provider = provider_label()
+    battery = BATTERIES[args.battery]
     evidence_dir = settings.EVIDENCE_DIR
-    await run_latency_benchmark(evidence_dir / "latency.csv")
-    await run_scale_benchmark(evidence_dir / "scale.csv")
+    await run_latency_benchmark(
+        evidence_dir / f"latency_{args.battery}.csv",
+        provider,
+    )
+    await run_scale_benchmark(
+        evidence_dir / f"scale_{args.battery}.csv",
+        provider,
+        battery["concurrency_levels"],
+        total_requests=args.scale_requests,
+    )
 
 
 if __name__ == "__main__":
