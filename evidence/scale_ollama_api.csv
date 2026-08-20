@@ -1,0 +1,4 @@
+provider,concurrency,total_requests,admitted,rejected_429_pct,throughput_rps,p50_ms,p95_ms,error_rate_pct
+ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,1,50,50,0.0,0.67,1856.63,2348.25,0.0
+ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,5,50,50,0.0,0.65,7438.71,10755.8,0.0
+ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,10,50,4,92.0,0.36,6888.3,10608.35,0.0

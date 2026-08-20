@@ -110,6 +110,21 @@ adaptadores ocorre na inicialização por `LLM_PROVIDER` e `EMBEDDING_PROVIDER`:
 | Cloud OpenAI | `openai` | `openai` | vazio | `OPENAI_API_KEY` |
 | Testes/CI | `mock` | `dense` | vazio | nenhuma |
 
+#### Controle de capacidade HTTP
+
+O controle de admissão vale somente para `POST /api/v1/query`; observabilidade,
+estáticos e preflight permanecem disponíveis durante saturação.
+
+| Variável | Padrão | Dimensionamento |
+| --- | ---: | --- |
+| `MAX_CONCURRENT_REQUESTS` | `1` | A bateria Ollama obteve mais throughput com uma inferência ativa do que com duas. |
+| `MAX_QUEUE_DEPTH` | `4` | Com p50 próximo de 2 s, limita a espera nominal da fila a aproximadamente 8 s. |
+| `ADMISSION_TIMEOUT_SECONDS` | `10.0` | Impõe o teto absoluto de espera antes da rejeição HTTP 429. |
+
+Quando a fila já está cheia, a API responde 429 imediatamente. Se uma posição não
+for liberada até o timeout, a espera também termina em 429 sem iniciar o grafo. Nos
+dois casos, incrementa `rejected_429_total` em `/metrics` e informa `Retry-After: 8`.
+
 Para trocar, altere o `.env` e recrie os containers:
 
 ```bash
@@ -186,6 +201,9 @@ make eval-mock
 # Bateria B: ponta a ponta real; requer o stack local em execução
 make compose-local
 make eval-ollama
+
+# Controle de admissão pela API: 50 chamadas em concorrência 1, 5 e 10
+make eval-ollama-api
 ```
 
 Resultados medidos em 2026-08-20:
@@ -221,7 +239,8 @@ recusada corretamente como `NO_EVIDENCE`.
 Os CSVs preservam o provedor em cada linha:
 
 - `evidence/latency_mock.csv` e `evidence/scale_mock.csv`;
-- `evidence/latency_ollama.csv` e `evidence/scale_ollama.csv`.
+- `evidence/latency_ollama.csv`, `evidence/scale_ollama.csv` e
+  `evidence/scale_ollama_api.csv`.
 
 ---
 
@@ -234,7 +253,11 @@ Os CSVs preservam o provedor em cada linha:
   confiança. Requer `X-Internal-API-Key`.
   - Retorna `200 OK`: Sucesso com resposta ou mensagem de que não encontrou evidências na base (`NO_EVIDENCE`).
   - Retorna `400 Bad Request`: Pergunta vazia ou muito longa (`INVALID_INPUT`).
+  - Retorna `429 Too Many Requests`: Limite de execução ou fila esgotado, com
+    mensagem em português e header `Retry-After`.
   - Retorna `503 Service Unavailable`: Repositório ou LLM indisponível (`SOURCE_UNAVAILABLE` / `LLM_UNAVAILABLE`).
 - `GET /health`: Health check do repositório vetorial, LLM e embeddings. Também
   informa provedores e modelos ativos, sem expor credenciais.
-- `GET /metrics`: Métricas de requisições totais, erros e percentis de latência (p50, p95, p99). Requer `X-Internal-API-Key`.
+- `GET /metrics`: Métricas de requisições totais, erros, rejeições
+  `rejected_429_total` e percentis de latência (p50, p95, p99). Requer
+  `X-Internal-API-Key`.

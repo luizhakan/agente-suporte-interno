@@ -329,13 +329,39 @@ concorrência 1; níveis 5 e 10 reduzem o throughput e elevam o p95 para dezenas
 segundos. Os dados completos estão em `evidence/scale_mock.csv` e
 `evidence/scale_ollama.csv`.
 
+### Controle de admissão
+
+Somente o `POST /api/v1/query` passa pelo controle de admissão da borda HTTP. Cada
+processo admite uma execução por vez (`MAX_CONCURRENT_REQUESTS=1`) e mantém até
+quatro requisições aguardando (`MAX_QUEUE_DEPTH=4`). Uma fila já cheia é rejeitada
+imediatamente; uma espera superior a `ADMISSION_TIMEOUT_SECONDS=10.0` também recebe
+HTTP 429 com `Retry-After: 8`. O valor do header usa quatro posições × p50 aproximado
+de 2 s. Saúde, métricas, arquivos estáticos e preflight não disputam esse semáforo.
+
+O limite inicialmente proposto de duas execuções foi reduzido para uma após a
+medição real: com duas, C=5 entregou somente 0,30 req/s e p95 de 23,92 s; com uma,
+entregou 0,65 req/s e p95 de 10,76 s.
+
+| Concorrência | Sem admissão: throughput | Sem admissão: p95 | Com admissão: throughput admitido | Com admissão: p95 admitido | HTTP 429 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0,6 req/s | 2.962,65 ms | 0,67 req/s | 2.348,25 ms | 0% |
+| 5 | 0,3 req/s | 30.118,52 ms | 0,65 req/s | 10.755,80 ms | 0% |
+| 10 | 0,3 req/s | 57.612,79 ms | 0,36 req/s | 10.608,35 ms | 92% |
+
+A medição sem admissão usa 100 chamadas por nível diretamente no grafo; a medição
+HTTP usa 50 chamadas válidas por nível e calcula percentis somente sobre as
+admitidas. Em C=10, rejeitar 92% rapidamente preservou o p95 admitido próximo de
+10,6 s, em vez de degradar toda a carga até 57,6 s. A rejeição é, portanto, o
+comportamento de proteção esperado. Os dados HTTP estão em
+`evidence/scale_ollama_api.csv`.
+
 ## 8. Riscos e mitigações
 
 | Risco | Mitigação |
 | --- | --- |
 | Acesso não autorizado | API key interna obrigatória em consultas e métricas, comparação em tempo constante e CORS restrito por allowlist |
 | Rate limit ou lentidão do LLM | timeout por chamada, no máximo 1 retry com backoff, semáforo de concorrência por réplica |
-| Sobrecarga da API | fila limitada, backpressure, HTTP 429 explícito, réplicas stateless |
+| Sobrecarga da API | controle implementado com `MAX_CONCURRENT_REQUESTS`, `MAX_QUEUE_DEPTH` e `ADMISSION_TIMEOUT_SECONDS`; fila limitada e HTTP 429 com `Retry-After` |
 | Base indisponível | health check no startup e no `/health`, `SOURCE_UNAVAILABLE` sem improvisar resposta |
 | Alucinação | prompt restrito ao contexto, `validate_citations` obrigatória, descarte da resposta em citação inválida |
 | Prompt injection nos documentos | documentos tratados como dados; o agente não tem ferramenta de escrita nem ação externa; instruções embutidas em chunk não têm efeito |
