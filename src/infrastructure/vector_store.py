@@ -21,7 +21,7 @@ class InMemoryVectorStore(RetrievalRepository):
     """
 
     _STOP_WORDS = {
-        "a", "ao", "aos", "as", "ate", "antes", "cai", "com", "como", "consigo", "da",
+        "a", "ao", "aos", "as", "ate", "antes", "com", "como", "consigo", "da",
         "das", "de", "deve", "do", "dos", "e", "em", "eu", "funciona", "me",
         "meu", "minha", "na", "nas", "no", "nos", "o", "os", "ou", "para",
         "pedir", "pode", "podem", "por", "posso", "qual", "quais", "quando",

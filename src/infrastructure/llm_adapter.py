@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 from urllib.parse import quote
 import httpx
 
-from src.config import settings
+from src.config import QUERY_SYNONYMS, settings
 from src.domain.models import Chunk, ChunkKind
 from src.infrastructure.embeddings import normalize_portuguese_text
 from src.infrastructure.telemetry import logger
@@ -207,47 +207,9 @@ class MockLLMAdapter(LLMClient):
         return answer, cited_ids
 
     async def rewrite_query(self, query: str) -> str:
-        # Normalização e expansão de siglas comuns de suporte interno
+        """Normaliza a consulta e expande apenas abreviações gerais do domínio."""
         q = normalize_portuguese_text(query)
-        original_tokens = set(q.split())
-        if "reembolso" in original_tokens and original_tokens.intersection({"vr", "va"}):
-            # Preserve a interseção dos dois conceitos. Expandir apenas VR/VA faria
-            # uma política de benefícios parecer evidência de um reembolso inexistente.
-            benefit = "vr" if "vr" in original_tokens else "va"
-            return f"reembolso {benefit}"
-
-        replacements = {
-            "vr": "vale refeição e alimentação",
-            "va": "vale alimentação",
-            "mfa": "autenticação de dois fatores 2fa",
-            "clt": "contrato de trabalho férias período aquisitivo",
-            "home": "home office trabalho remoto ajuda de custo",
-            "km": "reembolso quilometragem veículo próprio",
-        }
-        q = " ".join(replacements.get(token, token) for token in q.split())
-
-        if "atestado" in q and "medico" in q:
-            return "atestados medicos enviados rh portal colaborador 48 horas emissao"
-        if "vender" in q and "descanso" in q:
-            return "ferias abono pecuniario venda 10 dias"
-        if "rodar" in q and "carro" in q:
-            return "reembolso quilometragem km rodado veiculo proprio"
-        if "cadeira" in q and "ergonomica" in q:
-            return "reembolso cadeira ergonomica laudo nr nota fiscal"
-        if "notebook" in q and "furtado" in q:
-            return (
-                "furto roubo equipamento corporativo boletim ocorrencia bloqueio remoto seguranca"
-            )
-        if "vale refeicao" in q and "cartao" in q:
-            return "vale refeicao alimentacao vr va cartao flexivel beneficio"
-        if "decimo terceiro" in q and "ferias" in q:
-            return "pagamento adiantamento 13 salario primeira parcela janeiro ferias"
-        if "fracionar" in q and "ferias" in q:
-            return "ferias fracionadas periodos concordancia 14 dias 5 dias"
-        if "caracteres" in q and "senha" in q:
-            return "senhas mestras minimo 12 caracteres maiusculas minusculas numeros especiais"
-
-        return q.strip()
+        return " ".join(QUERY_SYNONYMS.get(token, token) for token in q.split()).strip()
 
     async def is_healthy(self) -> bool:
         return True

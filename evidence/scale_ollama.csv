@@ -1,4 +1,4 @@
 provider,concurrency,total_requests,total_time_s,throughput_rps,p50_ms,p95_ms,p99_ms,error_rate_pct
-ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,1,100,158.294,0.6,2034.49,2654.35,2981.74,0.0
-ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,5,100,343.588,0.3,20130.32,29438.07,31177.97,0.0
-ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,10,100,357.996,0.3,41099.21,59622.5,63623.16,0.0
+ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,1,100,169.721,0.6,2166.36,2962.65,3354.37,0.0
+ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,5,100,340.759,0.3,19649.78,30118.52,31075.16,0.0
+ollama:qwen3:1.7b+ollama:embeddinggemma:300m-qat-q4_0,10,100,344.156,0.3,38969.37,57612.79,61502.26,0.0

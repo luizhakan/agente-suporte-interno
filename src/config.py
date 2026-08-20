@@ -7,9 +7,21 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+# Expansões lexicais de abreviações frequentes no domínio corporativo. Este
+# dicionário não contém perguntas nem respostas do conjunto de avaliação.
+QUERY_SYNONYMS: dict[str, str] = {
+    "vr": "vale refeicao",
+    "va": "vale alimentacao",
+    "mfa": "autenticacao multifator dois fatores 2fa",
+    "km": "quilometro quilometragem",
+    "clt": "consolidacao das leis do trabalho contrato de trabalho",
+    "home": "home office trabalho remoto",
+}
+
 
 def _csv_env(name: str, default: str) -> list[str]:
     return [value.strip() for value in os.getenv(name, default).split(",") if value.strip()]
+
 
 class Settings(BaseModel):
     # Diretórios do projeto

@@ -174,24 +174,31 @@ Resultados medidos em 2026-08-20:
 
 | Bateria | Provedores | Acerto funcional | p50 | p95 |
 | --- | --- | ---: | ---: | ---: |
-| A | mock + dense hashing | 69/78 (88,5%) | 2,17 ms | 3,46 ms |
-| B | Qwen3 1.7B + EmbeddingGemma | 78/78 (100%) | 1.745,41 ms | 2.396,15 ms |
+| A | mock + dense hashing | 48/78 (61,5%) | 2,00 ms | 2,59 ms |
+| B | Qwen3 1.7B + EmbeddingGemma | 78/78 (100%) | 1.740,24 ms | 2.312,25 ms |
 
 | Bateria | Concorrência | Throughput | p95 | Erros |
 | --- | ---: | ---: | ---: | ---: |
-| A | 1 | 445,0 req/s | 3,12 ms | 0% |
-| A | 5 | 594,5 req/s | 11,70 ms | 0% |
-| A | 10 | 641,6 req/s | 21,02 ms | 0% |
-| A | 20 | 667,2 req/s | 38,76 ms | 0% |
-| A | 40 | 642,5 req/s | 77,79 ms | 0% |
-| B | 1 | 0,6 req/s | 2.654,35 ms | 0% |
-| B | 5 | 0,3 req/s | 29.438,07 ms | 0% |
-| B | 10 | 0,3 req/s | 59.622,50 ms | 0% |
+| A | 1 | 507,9 req/s | 2,52 ms | 0% |
+| A | 5 | 711,8 req/s | 8,32 ms | 0% |
+| A | 10 | 759,8 req/s | 15,42 ms | 0% |
+| A | 20 | 784,0 req/s | 28,61 ms | 0% |
+| A | 40 | 758,9 req/s | 61,83 ms | 0% |
+| B | 1 | 0,6 req/s | 2.962,65 ms | 0% |
+| B | 5 | 0,3 req/s | 30.118,52 ms | 0% |
+| B | 10 | 0,3 req/s | 57.612,79 ms | 0% |
 
 A bateria A mede o teto do código e da recuperação determinística, mas **não
 substitui** a bateria B. A medição real mostra que o único processo Ollama local
 satura acima de concorrência 1: aumentar o paralelismo reduz o throughput e aumenta
 fortemente o tempo em fila.
+
+A taxa funcional menor da bateria A é esperada: o embedding `dense` é hashing de
+n-gramas para testes rápidos, sem capacidade semântica para resolver paráfrases. O
+mock também não executa julgamento semântico e, após a remoção das reescritas
+específicas da avaliação, falha em q02, q05, q06, q07, q09, q18, q20, q21, q22 e
+q24. Esses casos passam na bateria B, exceto q18, que passa justamente por ser
+recusada corretamente como `NO_EVIDENCE`.
 
 Os CSVs preservam o provedor em cada linha:
 

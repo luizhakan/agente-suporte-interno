@@ -542,7 +542,7 @@ async def test_ollama_rewrite_rejects_semantically_unrelated_refusal():
 
     rewritten = await adapter.rewrite_query("Meu notebook foi furtado")
 
-    assert "furto roubo equipamento corporativo" in rewritten
+    assert rewritten == "meu notebook foi furtado"
     await client.aclose()
 
 
@@ -568,9 +568,22 @@ async def test_ollama_rewrite_never_drops_critical_original_terms():
 
     rewritten = await adapter.rewrite_query("Meu notebook foi furtado")
 
-    assert "furto roubo equipamento corporativo" in rewritten
+    assert "meu notebook foi furtado" in rewritten
     assert "requisitos de segurança" in rewritten
     await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_mock_rewrite_only_expands_domain_abbreviations():
+    adapter = MockLLMAdapter()
+
+    expanded = await adapter.rewrite_query("MFA, VR e home")
+    untouched = await adapter.rewrite_query("Meu notebook foi furtado")
+
+    assert "autenticacao multifator dois fatores 2fa" in expanded
+    assert "vale refeicao" in expanded
+    assert "home office trabalho remoto" in expanded
+    assert untouched == "meu notebook foi furtado"
 
 
 @pytest.mark.asyncio

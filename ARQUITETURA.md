@@ -250,13 +250,18 @@ Medição de 2026-08-20, com 26 perguntas × 3 rodadas:
 
 | Bateria | Provedores | Acerto funcional | p50 | p95 | Evidência |
 | --- | --- | ---: | ---: | ---: | --- |
-| A | mock + dense hashing | 69/78 (88,5%) | 2,17 ms | 3,46 ms | `evidence/latency_mock.csv` |
-| B | Qwen3 1.7B + EmbeddingGemma | 78/78 (100%) | 1.745,41 ms | 2.396,15 ms | `evidence/latency_ollama.csv` |
+| A | mock + dense hashing | 48/78 (61,5%) | 2,00 ms | 2,59 ms | `evidence/latency_mock.csv` |
+| B | Qwen3 1.7B + EmbeddingGemma | 78/78 (100%) | 1.740,24 ms | 2.312,25 ms | `evidence/latency_ollama.csv` |
 
 A bateria A isola o teto da implementação, mas não mede inferência real e **não
-substitui** a bateria B ponta a ponta. O primeiro request frio do Ollama aparece no
-CSV; as percentis incluem recuperação, reescrita, verificação, composição e
+substitui** a bateria B ponta a ponta. A medição final foi feita com o modelo já
+carregado; as percentis incluem recuperação, reescrita, verificação, composição e
 validação de citações.
+
+O acerto menor no mock/dense é esperado: hashing de n-gramas não oferece a semântica
+necessária para as paráfrases do dataset. Sem reescritas específicas de perguntas,
+falham q02, q05, q06, q07, q09, q18, q20, q21, q22 e q24; o Ollama semântico mantém
+78/78.
 
 O conjunto de avaliação tem 26 perguntas em cinco grupos: resposta direta,
 paráfrase, pergunta sem resposta na base, casos de borda e descoberta do escopo.
@@ -306,14 +311,14 @@ Resultados medidos em 2026-08-20, com 100 requisições por nível:
 
 | Bateria | Concorrência | Throughput | p95 | Erros |
 | --- | ---: | ---: | ---: | ---: |
-| A | 1 | 445,0 req/s | 3,12 ms | 0% |
-| A | 5 | 594,5 req/s | 11,70 ms | 0% |
-| A | 10 | 641,6 req/s | 21,02 ms | 0% |
-| A | 20 | 667,2 req/s | 38,76 ms | 0% |
-| A | 40 | 642,5 req/s | 77,79 ms | 0% |
-| B | 1 | 0,6 req/s | 2.654,35 ms | 0% |
-| B | 5 | 0,3 req/s | 29.438,07 ms | 0% |
-| B | 10 | 0,3 req/s | 59.622,50 ms | 0% |
+| A | 1 | 507,9 req/s | 2,52 ms | 0% |
+| A | 5 | 711,8 req/s | 8,32 ms | 0% |
+| A | 10 | 759,8 req/s | 15,42 ms | 0% |
+| A | 20 | 784,0 req/s | 28,61 ms | 0% |
+| A | 40 | 758,9 req/s | 61,83 ms | 0% |
+| B | 1 | 0,6 req/s | 2.962,65 ms | 0% |
+| B | 5 | 0,3 req/s | 30.118,52 ms | 0% |
+| B | 10 | 0,3 req/s | 57.612,79 ms | 0% |
 
 Na bateria A, o throughput atinge o platô entre 10 e 20 concorrentes e a fila passa
 a dominar o p95. Na bateria B, o único processo Ollama já está saturado em
