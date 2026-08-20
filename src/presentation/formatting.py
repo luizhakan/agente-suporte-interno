@@ -5,7 +5,7 @@ import re
 from typing import Iterable
 
 
-_CITATION_PATTERN = re.compile(r"\[([a-zA-Z0-9_-]+)\]")
+_CHUNK_CITATION_PATTERN = re.compile(r"\[([a-zA-Z0-9_-]+_c\d+)\]")
 _SOURCE_PREFIX_PATTERN = re.compile(
     r"De acordo com a seção\s+.*?\s+\([^)]+\.md\):\s*",
     flags=re.IGNORECASE,
@@ -32,14 +32,8 @@ def format_answer_for_display(answer: str | None, cited_chunk_ids: Iterable[str]
         chunk_id: number
         for number, chunk_id in enumerate(cited_chunk_ids, start=1)
     }
-    formatted = _CITATION_PATTERN.sub(
-        lambda match: (
-            f"[{citation_numbers[match.group(1)]}]"
-            if match.group(1) in citation_numbers
-            else ""
-        ),
-        formatted,
-    )
+    for chunk_id, number in citation_numbers.items():
+        formatted = formatted.replace(f"[{chunk_id}]", f"[{number}]")
     formatted = re.sub(r"(\[\d+\])\s+(?=\S)", r"\1\n\n", formatted)
     return re.sub(r"\n{3,}", "\n\n", formatted).strip()
 
@@ -59,7 +53,7 @@ def evidence_excerpt(
     raw_answer = answer or ""
     cursor = 0
     previous_excerpt = ""
-    for match in _CITATION_PATTERN.finditer(raw_answer):
+    for match in _CHUNK_CITATION_PATTERN.finditer(raw_answer):
         candidate = _clean_grounded_text(raw_answer[cursor:match.start()])
         if candidate:
             previous_excerpt = candidate

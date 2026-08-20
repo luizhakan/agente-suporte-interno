@@ -218,7 +218,7 @@ async def test_graph_hallucinated_citation_rejected():
     [
         ("Resposta sem fonte", []),
         ("Resposta que omite a marcação da fonte", ["c1"]),
-        ("Resposta mistura fonte válida [c1] e inválida [inventada]", ["c1"]),
+        ("Resposta usa [c1], mas declara outra fonte", ["c2"]),
     ],
 )
 async def test_graph_rejects_missing_explicit_citation(answer, cited_ids):
@@ -247,6 +247,36 @@ async def test_graph_rejects_missing_explicit_citation(answer, cited_ids):
 
     assert result["failure"] == FailureKind.NO_EVIDENCE
     assert result["cited_chunk_ids"] == []
+
+
+@pytest.mark.asyncio
+async def test_graph_ignores_non_citation_brackets_in_grounded_answer():
+    chunks = [
+        Chunk(chunk_id="c1", source="doc.md", section="S1", content="Texto 1", score=0.85),
+    ]
+    answer = "O campo [opcional] pode ficar vazio conforme a política. [c1]"
+    graph = build_support_graph(
+        retrieval_repo=StubRetrievalRepo(chunks=chunks),
+        llm=StubLLMClient(answer=answer, cited_ids=["c1"]),
+    )
+    state: AgentState = {
+        "trace_id": "test-editorial-brackets",
+        "question": "O campo precisa ser preenchido?",
+        "effective_query": "O campo precisa ser preenchido?",
+        "rewrite_count": 0,
+        "retrieved_chunks": [],
+        "evidence_score": 0.0,
+        "answer": None,
+        "cited_chunk_ids": [],
+        "timings": {},
+        "failure": None,
+    }
+
+    result = await graph.ainvoke(state)
+
+    assert result["failure"] is None
+    assert result["answer"] == answer
+    assert result["cited_chunk_ids"] == ["c1"]
 
 
 @pytest.mark.asyncio

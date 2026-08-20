@@ -36,8 +36,20 @@ make install
 ```
 *(ou crie seu ambiente com `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`)*
 
+Antes dos passos 3 e 4, escolha um modo para executar sem Docker:
+
+- **Ollama nativo:** instale e inicie o Ollama, baixe `qwen3:1.7b` e
+  `embeddinggemma:300m-qat-q4_0` e altere `OLLAMA_BASE_URL` no `.env` para
+  `http://localhost:11434/api`. O hostname `ollama` do `.env.example` só é
+  resolvido pela rede interna do Docker Compose.
+- **Avaliação rápida sem downloads:** altere o `.env` para
+  `LLM_PROVIDER=mock`, `EMBEDDING_PROVIDER=dense` e `COMPOSE_PROFILES=`. Esse
+  modo determinístico mede o teto da infraestrutura, mas não substitui a
+  avaliação semântica ponta a ponta com Ollama.
+
 ### 3. Executar ingestão offline da base de conhecimento
-O pipeline lê os documentos em `data/docs/*.md`, divide em chunks respeitando cabeçalhos e cria o índice versionado em `index/v1/`:
+O pipeline lê os documentos em `data/docs/*.md`, divide em chunks respeitando
+cabeçalhos e cria o índice local em `index/v1/`:
 ```bash
 make ingest
 ```
@@ -119,6 +131,12 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 Ao adicionar ou editar arquivos em `data/docs/*.md`, recrie/reinicie a aplicação.
 O startup detecta mudança nos documentos, no provedor ou no modelo, invalida índices
 incompatíveis e refaz a indexação com o embedding ativo.
+
+`index/` é um artefato regenerável de runtime e não é versionado no Git. No Compose,
+ele fica no volume `agente-index`; fora do Docker, fica em `index/v1/`. A imagem não
+embute um índice `dense`: o startup gera o índice com o provedor de embeddings
+realmente configurado e o reutiliza enquanto corpus, provedor, modelo e dimensão
+permanecerem compatíveis.
 
 No primeiro acesso à interface, clique em **Configurar acesso** e informe o mesmo
 valor de `INTERNAL_API_KEY` definido no arquivo `.env`. A chave fica somente na

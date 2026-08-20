@@ -1,10 +1,10 @@
 """Grafo LangGraph determinístico com orquestração de nós, timeouts e fallbacks."""
 import asyncio
-import re
 from typing import Any, Dict, Literal
 from langgraph.graph import StateGraph, END
 
 from src.config import settings
+from src.domain.citations import extract_context_citations
 from src.domain.models import AgentState, FailureKind
 from src.domain.sufficiency import check_evidence_sufficiency
 from src.infrastructure.telemetry import measure_time, logger
@@ -161,7 +161,7 @@ def build_support_graph(
             retrieved_ids = {c.chunk_id for c in state.get("retrieved_chunks", [])}
             cited_ids = state.get("cited_chunk_ids", [])
             answer = state.get("answer") or ""
-            answer_citations = set(re.findall(r"\[([a-zA-Z0-9_-]+)\]", answer))
+            answer_citations = set(extract_context_citations(answer, retrieved_ids))
 
             # Uma resposta gerada sem ao menos uma citação explícita não é fundamentada.
             if not cited_ids:

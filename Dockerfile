@@ -24,9 +24,6 @@ COPY data/ ./data/
 COPY scripts/ ./scripts/
 COPY Makefile .
 
-# Executa a ingestão inicial dos documentos para gerar o índice na imagem
-RUN EMBEDDING_PROVIDER=dense python -m src.application.ingestion
-
 # Porta da API
 EXPOSE 8000
 

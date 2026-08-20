@@ -1,5 +1,0 @@
-{
-  "embedding_fingerprint": "dense:hashing-ngram-384:retrieval-v1",
-  "corpus_fingerprint": "f1f023135fba2710405f81978a15b2034e74e16e64f6fde3a31d5cbb31231ecb",
-  "vector_dimension": 384
-}

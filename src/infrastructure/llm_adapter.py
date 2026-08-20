@@ -7,6 +7,7 @@ from urllib.parse import quote
 import httpx
 
 from src.config import QUERY_SYNONYMS, settings
+from src.domain.citations import extract_context_citations
 from src.domain.models import Chunk, ChunkKind
 from src.infrastructure.embeddings import normalize_portuguese_text
 from src.infrastructure.telemetry import logger
@@ -255,12 +256,7 @@ class OpenAICompatibleLLMAdapter(LLMClient):
 
     def _extract_citations(self, text: str, available_chunk_ids: set) -> List[str]:
         """Extrai chunk_ids citados no formato [chunk_id] que existam nos chunks disponíveis."""
-        matches = re.findall(r"\[([a-zA-Z0-9_\-]+)\]", text)
-        cited = []
-        for m in matches:
-            if m in available_chunk_ids and m not in cited:
-                cited.append(m)
-        return cited
+        return extract_context_citations(text, available_chunk_ids)
 
     async def _call_api_with_retry(self, messages: List[dict]) -> str:
         async with self.semaphore:
@@ -360,12 +356,7 @@ class OllamaLLMAdapter(LLMClient):
 
     @staticmethod
     def _extract_citations(text: str, available_chunk_ids: set[str]) -> List[str]:
-        matches = re.findall(r"\[([a-zA-Z0-9_\-]+)\]", text)
-        cited: List[str] = []
-        for match in matches:
-            if match in available_chunk_ids and match not in cited:
-                cited.append(match)
-        return cited
+        return extract_context_citations(text, available_chunk_ids)
 
     async def _call_api_with_retry(
         self,

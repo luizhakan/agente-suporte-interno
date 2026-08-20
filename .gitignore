@@ -34,6 +34,9 @@ ENV/
 .coverage
 htmlcov/
 
+# Artefato local regenerável de embeddings
+index/
+
 # IDEs e editores
 .vscode/
 .idea/

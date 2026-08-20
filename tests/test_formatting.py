@@ -25,6 +25,15 @@ def test_answer_uses_numeric_references_without_internal_ids_or_repeated_prefixe
     assert "De acordo com" not in formatted
 
 
+def test_answer_preserves_bracketed_text_that_is_not_a_context_citation():
+    formatted = format_answer_for_display(
+        "O preenchimento é [opcional]. [politica_c1]",
+        ["politica_c1"],
+    )
+
+    assert formatted == "O preenchimento é [opcional]. [1]"
+
+
 def test_evidence_excerpt_returns_claim_linked_to_requested_chunk():
     raw_answer = (
         "A empresa adota trabalho híbrido. [home_office_c1]\n\n"

@@ -202,7 +202,10 @@ flowchart LR
 - **Ingestão é feita antes de servir consultas** e pode ser executada por comando
   (`make ingest`). Se o índice estiver ausente ou incompatível, o startup o recria.
   Nenhum embedding de documento é calculado no caminho de uma requisição normal.
-- **Índice versionado** (`index/v{N}/`), carregado uma vez no startup. Publicação de
+- **Índice de runtime versionado** (`index/v{N}/`), carregado uma vez no startup e
+  não armazenado no Git. No Compose ele persiste em volume próprio; fora do Docker,
+  fica no diretório local ignorado `index/`. O fingerprint de corpus, provedor,
+  modelo e dimensão determina se pode ser reutilizado. Em escala, a publicação de
   nova versão é troca de ponteiro + restart das réplicas.
 
 ### Suficiência de evidência
@@ -336,7 +339,7 @@ segundos. Os dados completos estão em `evidence/scale_mock.csv` e
 | Base indisponível | health check no startup e no `/health`, `SOURCE_UNAVAILABLE` sem improvisar resposta |
 | Alucinação | prompt restrito ao contexto, `validate_citations` obrigatória, descarte da resposta em citação inválida |
 | Prompt injection nos documentos | documentos tratados como dados; o agente não tem ferramenta de escrita nem ação externa; instruções embutidas em chunk não têm efeito |
-| Índice desatualizado | artefato versionado, troca atômica de ponteiro, versão do índice registrada em cada resposta |
+| Índice desatualizado | fingerprint de corpus/provedor/modelo/dimensão, reconstrução automática e versão registrada em cada resposta |
 | Custo de LLM | contexto curto, `top_k` limitado, `max_tokens` teto, log de tokens por request, alerta de custo diário |
 | Threshold mal calibrado | conjunto de avaliação com perguntas fora da base; regressão roda em CI |
 
