@@ -1,0 +1,71 @@
+services:
+  agente-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agente-suporte-interno
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: http://ollama:11434/api
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-embeddinggemma:300m-qat-q4_0}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    depends_on:
+      ollama-model:
+        condition: service_completed_successfully
+        required: false
+    volumes:
+      # Documentos ficam editáveis no host; o índice semântico usa volume próprio.
+      - ./data/docs:/app/data/docs:ro
+      - agente-index:/app/index/v1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  ollama:
+    image: ollama/ollama:0.32.6
+    container_name: agente-ollama
+    profiles: ["local"]
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  ollama-model:
+    image: ollama/ollama:0.32.6
+    container_name: agente-ollama-model-loader
+    profiles: ["local"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-embeddinggemma:300m-qat-q4_0}
+    volumes:
+      - ollama-models:/root/.ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        ollama pull "$${OLLAMA_MODEL}" &&
+        ollama pull "$${OLLAMA_EMBEDDING_MODEL}"
+    restart: "no"
+
+volumes:
+  ollama-models:
+  agente-index:

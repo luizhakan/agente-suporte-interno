@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Assistente interno para consulta de políticas corporativas.">
+    <title>Atende — Suporte interno</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Página inicial do Atende">
+          <span class="brand-mark" aria-hidden="true">A</span>
+          <span>
+            <strong>Atende</strong>
+            <small>Suporte interno</small>
+          </span>
+        </a>
+
+        <div class="service-status" title="Estado do serviço">
+          <span id="status-dot" class="status-dot is-checking" aria-hidden="true"></span>
+          <span id="status-text">Verificando serviço</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="page-title">
+          <p class="eyebrow">Base interna de conhecimento</p>
+          <h1 id="page-title">Como podemos ajudar?</h1>
+          <p class="hero-copy">
+            Tire dúvidas sobre férias, reembolsos, trabalho remoto, segurança e onboarding.
+          </p>
+        </section>
+
+        <section class="assistant-card" aria-label="Consulta ao assistente">
+          <form id="query-form">
+            <label for="question">Sua pergunta</label>
+            <div class="question-box">
+              <textarea
+                id="question"
+                name="question"
+                rows="3"
+                maxlength="1000"
+                placeholder="Ex.: Como funciona o fracionamento de férias?"
+                required
+              ></textarea>
+              <button id="submit-button" type="submit">
+                <span class="button-label">Perguntar</span>
+                <span class="button-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+            <div class="form-meta">
+              <span>Enter para enviar · Shift + Enter para nova linha</span>
+              <button id="credentials-button" class="text-button" type="button">
+                Configurar acesso
+              </button>
+            </div>
+          </form>
+
+          <div class="suggestions" aria-label="Perguntas sugeridas">
+            <span>Experimente:</span>
+            <button type="button" data-question="Como funciona o fracionamento de férias?">Férias</button>
+            <button type="button" data-question="Quais despesas podem ser reembolsadas?">Reembolso</button>
+            <button type="button" data-question="Quais são as regras de home office?">Home office</button>
+          </div>
+        </section>
+
+        <section id="result" class="result-card" aria-live="polite" hidden>
+          <div class="result-heading">
+            <span class="answer-icon" aria-hidden="true">✓</span>
+            <div>
+              <p class="result-label">Resposta fundamentada</p>
+              <p id="result-context" class="result-context"></p>
+            </div>
+          </div>
+
+          <div id="answer" class="answer"></div>
+
+          <div id="sources-section" class="sources-section" hidden>
+            <h2>Evidências usadas</h2>
+            <div id="sources" class="sources"></div>
+          </div>
+
+          <div class="result-footer">
+            <span id="trace-id"></span>
+            <span id="latency"></span>
+          </div>
+        </section>
+
+        <section id="error" class="error-card" role="alert" hidden>
+          <strong id="error-title">Não foi possível concluir a consulta</strong>
+          <p id="error-message"></p>
+        </section>
+      </main>
+
+      <footer>
+        <span>As respostas são fundamentadas exclusivamente na base interna.</span>
+        <a href="/docs">Documentação da API</a>
+      </footer>
+    </div>
+
+    <dialog id="credentials-dialog">
+      <form id="credentials-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Acesso protegido</p>
+            <h2>Chave da API interna</h2>
+          </div>
+          <button id="close-dialog" class="icon-button" type="button" aria-label="Fechar">×</button>
+        </div>
+
+        <p class="dialog-copy">
+          Use o mesmo valor de <code>INTERNAL_API_KEY</code> configurado no arquivo <code>.env</code> do servidor.
+          A chave permanece somente nesta aba.
+        </p>
+
+        <label for="api-key">Chave de acesso</label>
+        <input id="api-key" name="api-key" type="password" autocomplete="off" minlength="32" required>
+        <p id="credentials-error" class="field-error" hidden>A chave deve ter pelo menos 32 caracteres.</p>
+
+        <div class="dialog-actions">
+          <button id="clear-key" class="secondary-button" type="button">Limpar chave</button>
+          <button class="primary-button" type="submit">Salvar nesta aba</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
