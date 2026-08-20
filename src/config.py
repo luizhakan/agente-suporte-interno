@@ -31,16 +31,16 @@ class Settings(BaseModel):
     EVIDENCE_DIR: Path = BASE_DIR / "evidence"
 
     # Parâmetros de Suficiência de Evidência (RAG)
-    TAU: float = float(os.getenv("RAG_TAU", "0.28"))
+    TAU: float = float(os.getenv("RAG_TAU", "0.30"))
     STRONG_TAU: float = float(os.getenv("RAG_STRONG_TAU", "0.40"))
     CATALOG_TAU: float = float(os.getenv("RAG_CATALOG_TAU", "0.20"))
     CATALOG_COMPETITION_MARGIN: float = float(
         os.getenv("RAG_CATALOG_COMPETITION_MARGIN", "0.035")
     )
-    DELTA: float = float(os.getenv("RAG_DELTA", "0.10"))
-    TOP_K: int = int(os.getenv("RAG_TOP_K", "4"))
-    SEMANTIC_WEIGHT: float = float(os.getenv("RAG_SEMANTIC_WEIGHT", "0.80"))
-    LEXICAL_WEIGHT: float = float(os.getenv("RAG_LEXICAL_WEIGHT", "0.20"))
+    DELTA: float = float(os.getenv("RAG_DELTA", "0.01"))
+    TOP_K: int = int(os.getenv("RAG_TOP_K", "2"))
+    SEMANTIC_WEIGHT: float = float(os.getenv("RAG_SEMANTIC_WEIGHT", "0.75"))
+    LEXICAL_WEIGHT: float = float(os.getenv("RAG_LEXICAL_WEIGHT", "0.25"))
     CONSTRAINT_MARGIN: float = float(os.getenv("RAG_CONSTRAINT_MARGIN", "0.03"))
     CONSTRAINT_PENALTY_WEIGHT: float = float(
         os.getenv("RAG_CONSTRAINT_PENALTY_WEIGHT", "1.5")
