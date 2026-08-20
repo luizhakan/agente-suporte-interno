@@ -88,8 +88,8 @@ class Settings(BaseModel):
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")
     # Controle de admissão HTTP. O Ollama CPU satura com pouco paralelismo;
-    # duas execuções preservam utilização sem criar uma fila interna irrestrita.
-    MAX_CONCURRENT_REQUESTS: int = int(os.getenv("MAX_CONCURRENT_REQUESTS", "2"))
+    # a medição HTTP mostrou maior throughput com uma execução por processo.
+    MAX_CONCURRENT_REQUESTS: int = int(os.getenv("MAX_CONCURRENT_REQUESTS", "1"))
     # Quatro posições equivalem a cerca de 8 s de espera com p50 próximo de 2 s.
     MAX_QUEUE_DEPTH: int = int(os.getenv("MAX_QUEUE_DEPTH", "4"))
     ADMISSION_TIMEOUT_SECONDS: float = float(
