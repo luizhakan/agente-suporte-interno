@@ -145,7 +145,8 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
 Ao adicionar ou editar arquivos em `data/docs/*.md`, recrie/reinicie a aplicação.
 O startup detecta mudança nos documentos, no provedor ou no modelo, invalida índices
-incompatíveis e refaz a indexação com o embedding ativo.
+incompatíveis e refaz a indexação com o embedding ativo. O passo a passo completo está
+em [Indexar um novo documento na base](#-indexar-um-novo-documento-na-base).
 
 `index/` é um artefato regenerável de runtime e não é versionado no Git. No Compose,
 ele fica no volume `agente-index`; fora do Docker, fica em `index/v1/`. A imagem não
@@ -176,6 +177,127 @@ Você pode interagir interativamente ou passar a pergunta diretamente como argum
 # Modo chat interativo
 make cli
 ```
+
+---
+
+## 📚 Indexar um novo documento na base
+
+A base de conhecimento é o conteúdo de `data/docs/*.md`. Não existe upload em tempo
+de execução: adicionar um assunto significa criar um Markdown e regerar o índice
+vetorial em `index/v1/` (`chunks.json`, `vectors.npy` e `metadata.json`).
+
+### 1. Criar o Markdown em `data/docs/`
+
+```bash
+# macOS e Linux
+$EDITOR data/docs/vale_transporte.md
+```
+
+O ingestor não usa nenhum registro manual de assuntos: ele lê o arquivo, quebra por
+cabeçalho e deriva os metadados do próprio texto. Por isso a estrutura importa:
+
+```markdown
+# Política de Vale-Transporte
+
+## 1. Elegibilidade
+Colaboradores CLT em regime presencial ou híbrido têm direito ao vale-transporte.
+
+## 2. Desconto em folha
+O desconto é de até 6% do salário base.
+```
+
+- **Nome do arquivo em `snake_case`:** o radical vira o prefixo do identificador dos
+  chunks (`vale_transporte.md` → `vale_transporte_c1`, `vale_transporte_c2`, ...).
+- **Um `# Título` na primeira linha:** é o rótulo do documento no catálogo de escopo.
+  Sem `#`, o pipeline cai no nome do arquivo capitalizado.
+- **Seções com `##`:** cada cabeçalho inicia um chunk novo. O texto embutido no vetor
+  é `arquivo | seção` + conteúdo, então o título da seção deve conter o vocabulário
+  que o colaborador usaria na pergunta ("Desconto em folha", não "Item 2").
+- **Seções curtas e objetivas:** até 700 caracteres viram um único chunk; acima disso
+  o texto é fatiado com 100 caracteres de sobreposição, preservando palavras. Prazos,
+  percentuais e valores concretos na mesma seção melhoram a resposta extrativa.
+
+### 2. Regerar o índice vetorial
+
+Fora do Docker:
+
+```bash
+make ingest
+```
+
+A saída lista o que foi indexado e o total de chunks:
+
+```
+Documento 'vale_transporte.md' processado em 2 chunks.
+Total de chunks extraídos: 8. Calculando embeddings...
+Sucesso! 8 chunks indexados.
+```
+
+> **Atenção:** a ingestão precisa rodar com o mesmo `EMBEDDING_PROVIDER` e o mesmo
+> modelo que vão atender as consultas — o índice guarda essa assinatura. Com
+> `EMBEDDING_PROVIDER=ollama`, o `.env` deve apontar para um Ollama alcançável a
+> partir de onde o comando roda (`OLLAMA_BASE_URL=http://localhost:11434/api` fora do
+> Compose; o hostname `ollama` só resolve dentro da rede do Docker).
+
+Com Docker Compose, `./data/docs` é montado como volume somente leitura: o arquivo
+novo já está visível no container e **não é preciso reconstruir a imagem**. Basta
+reiniciar a API, ou disparar a ingestão manualmente:
+
+```bash
+# Opção A: o startup detecta a mudança e reindexa sozinho
+docker compose restart agente-api
+docker compose logs -f agente-api
+
+# Opção B: reindexar sem reiniciar o processo
+docker compose exec agente-api python -m src.application.ingestion
+```
+
+A reindexação automática funciona porque `metadata.json` guarda dois selos: o
+`corpus_fingerprint` (SHA-256 dos nomes e do conteúdo de todos os `.md`) e o
+`embedding_fingerprint` (provedor, modelo e dimensão). Se qualquer um divergir no
+startup, o índice antigo é descartado e refeito com o embedding ativo — comportamento
+controlado por `AUTO_INGEST_ON_STARTUP` (padrão `true`).
+
+### 3. Conferir que o documento entrou
+
+```bash
+# Chunks por documento no índice atual
+.venv/bin/python3 -c "import json; from collections import Counter; \
+print(Counter(c['source'] for c in json.load(open('index/v1/chunks.json'))))"
+
+# Pergunta de ponta a ponta
+.venv/bin/python3 -m src.presentation.cli "Qual é o desconto do vale-transporte?"
+```
+
+O catálogo de escopo (`knowledge_base_catalog_c1`) é reconstruído a cada ingestão a
+partir dos títulos e das seções realmente indexados. Depois de reindexar, a pergunta
+"sobre o que posso perguntar?" já cita o documento novo, sem edição de nenhuma lista.
+
+### 4. Editar ou remover documentos
+
+Editar um `.md` existente ou apagá-lo de `data/docs/` segue exatamente o mesmo fluxo:
+o `corpus_fingerprint` muda e a próxima inicialização (ou `make ingest`) refaz o
+índice inteiro. `index/` é artefato regenerável e não versionado; para forçar um
+índice limpo no Compose, remova o volume dedicado:
+
+```bash
+docker compose down --remove-orphans
+docker volume rm agente-index
+docker compose up --build -d
+```
+
+### 5. Se o agente responder `NO_EVIDENCE` sobre o assunto novo
+
+A recusa é o comportamento correto quando a evidência fica abaixo do limiar. Antes de
+mexer nos parâmetros, verifique nesta ordem:
+
+1. O documento aparece em `chunks.json` com o número de chunks esperado.
+2. O índice foi gerado com o embedding que está atendendo agora (`GET /health` mostra
+   provedores e modelos ativos).
+3. Os títulos das seções usam os termos da pergunta real; renomear a seção costuma
+   resolver mais do que baixar limiar.
+4. Só então ajuste `RAG_TAU` / `RAG_TOP_K` no `.env`, ou registre a abreviação em
+   `QUERY_SYNONYMS` (`src/config.py`) se a dúvida usar uma sigla interna.
 
 ---
 
